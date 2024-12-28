@@ -390,31 +390,40 @@ async def list_myids(ctx):
     except Exception as e:
         await ctx.followup.send(f"An error occurred while fetching MyIDs: {e}")
 
-@bot.tree.command(name="wipe_myids", description="Empty the list associating users with their MyIDs")
+@bot.tree.command(name="wipe_myids", description="Empty the database associating users with their MyIDs")
 @app_commands.guild_only()
 async def wipe_myids(ctx):
     if not ctx.user.guild_permissions.administrator:
-        await ctx.response.send_message("You do not have permission to use this command.")
+        await ctx.response.send_message("You do not have permission to use this command.", ephemeral=True)
         return
 
     if not await is_moderator_channel(ctx):
         await ctx.response.send_message("This command can only be used in #moderator-general.", ephemeral=True)
         return
 
-    await ctx.response.send_message("This action will wipe all MyIDs. Type `Confirm` to proceed.", ephemeral=True)
+    await ctx.response.send_message(
+        "This action will wipe all MyIDs from the database. Type `Confirm` to proceed.",
+        ephemeral=True
+    )
 
     try:
         def check(m):
-            return m.author == ctx.user and m.content.lower() == "confirm"
+            return m.author == ctx.user and m.channel == ctx.channel
 
-        await bot.wait_for("message", check=check, timeout=30.0)
-        db_cursor.execute("DELETE FROM user_data")
-        db_connection.commit()
-        await ctx.followup.send("All MyIDs have been wiped.")
+        msg = await bot.wait_for("message", check=check, timeout=10.0)
+
+        if msg.content.lower() == "confirm":
+            db_cursor.execute("DELETE FROM user_data")
+            db_connection.commit()
+            await ctx.followup.send("All MyIDs have been deleted from the database.")
+        else:
+            await ctx.followup.send("Operation canceled. You did not type `Confirm`.", ephemeral=True)
+
     except asyncio.TimeoutError:
-        await ctx.followup.send("Operation canceled due to no confirmation.")
+        await ctx.followup.send("Operation canceled due to no response within the timeout period.", ephemeral=True)
     except Exception as e:
-        await ctx.followup.send(f"An error occurred while wiping MyIDs: {e}")
+        await ctx.followup.send(f"An error occurred while wiping MyIDs: {e}", ephemeral=True)
+
 
 # Run the bot
 bot.run(TOKEN)
