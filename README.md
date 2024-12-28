@@ -7,8 +7,7 @@
 3. [Installation and Setup](#installation-and-setup)
 4. [Commands](#commands)
 5. [Technical Details](#technical-details)
-6. [Contributing](#contributing)
-7. [License](#license)
+6. [License](#license)
 
 ## Introduction
 
@@ -120,3 +119,4 @@ The **NGE Authenticator** is a Discord bot designed to streamline user complianc
 
 This project is licensed under the MIT License. See the LICENSE file for details.
 
+![alt text](https://github.com/Cam-Cooper3/nge_auth_bot/blob/main/Resources/NGE_Icon_Git.png?raw=true)
