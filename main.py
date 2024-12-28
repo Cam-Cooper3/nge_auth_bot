@@ -175,20 +175,16 @@ async def transfer_to_everyone_and_notify(member, reason):
         print(f"Error handling member update for {member.display_name}: {e}")
 
 @bot.command()
-async def check_members(ctx):
-    """Command to check all members' nicknames and enforce compliance (Admin only)."""
+async def scan_server(ctx):
+    """Command to scan all members in the server for compliance (Admin only)."""
     if not ctx.author.guild_permissions.administrator:
         await ctx.send(f"{ctx.author.mention}, you do not have permission to use this command.")
         return
 
-    await ctx.send("Scanning all members for nickname compliance...")
-    await scan_members(ctx.guild)
-    await ctx.send("Member scan complete. Non-compliant members have been notified.")
+    await ctx.send("Starting a server-wide compliance scan...")
 
-async def scan_members(guild):
-    """Scan all members in the guild for compliance."""
     MEMBER_ROLE_NAME = "Member"
-    role = discord.utils.get(guild.roles, name=MEMBER_ROLE_NAME)
+    role = discord.utils.get(ctx.guild.roles, name=MEMBER_ROLE_NAME)
 
     print(f"Starting compliance scan for @Members...")
 
@@ -196,7 +192,7 @@ async def scan_members(guild):
     compliant_count = 0
     non_compliant_count = 0
 
-    for member in guild.members:
+    for member in ctx.guild.members:
         if member.bot:  # Ignore bots
             continue
 
@@ -205,7 +201,7 @@ async def scan_members(guild):
 
         try:
             # Skip the server owner
-            if member == guild.owner:
+            if member == ctx.guild.owner:
                 print(f"Skipping server owner: {member.display_name}.")
                 compliant_count += 1  # Server owner is treated as compliant
                 continue
@@ -222,15 +218,6 @@ async def scan_members(guild):
                 non_compliant_count += 1
                 continue
 
-            # Check if the member has a unique MyID in the database
-            db_cursor.execute("SELECT my_id FROM user_data WHERE user_id = ?", (member.id,))
-            result = db_cursor.fetchone()
-            if not result:
-                print(f"No MyID found for {member.display_name}.")
-                await transfer_to_everyone_and_notify(member, reason="Missing MyID in the database.")
-                non_compliant_count += 1
-                continue
-
             # If member is compliant
             compliant_count += 1
 
@@ -243,6 +230,64 @@ async def scan_members(guild):
     print(f"Total members scanned: {total_scanned}")
     print(f"Compliant members: {compliant_count}")
     print(f"Non-compliant members: {non_compliant_count}")
+
+    # Send summary to the channel
+    await ctx.send(
+        f"**Scan Completed**\n"
+        f"Total members scanned: {total_scanned}\n"
+        f"Compliant members: {compliant_count}\n"
+        f"Non-compliant members: {non_compliant_count}"
+    )
+
+@bot.command()
+async def scan_member(ctx, member: discord.Member):
+    """Command to scan a specific member for compliance (Admin only)."""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("You do not have permission to use this command.")
+        return
+
+    print(f"Scanning {member.display_name}...")  # Log the member being scanned
+
+    # Skip bots
+    if member.bot:
+        await ctx.send(f"{member.display_name} is a bot and will be skipped.")
+        return
+
+    # Skip the server owner
+    if member == ctx.guild.owner:
+        await ctx.send(f"{member.display_name} is the server owner and unable to be scanned.")
+        return
+
+    # Get the 'Member' role
+    member_role = discord.utils.get(ctx.guild.roles, name="Member")
+
+    try:
+        # Check if the user has the 'Member' role
+        if member_role not in member.roles:
+            await ctx.send(f"{member.display_name} does not have the 'Member' role. Skipping.")
+            return
+
+        # Check if the member's nickname is compliant
+        if not member.nick or len(member.nick.split()) < 2:
+            await ctx.send(f"{member.display_name} does not have a compliant nickname.")
+            await transfer_to_everyone_and_notify(member, reason="Invalid nickname format.")
+            return
+
+        # Check if the member has a unique MyID in the database
+        db_cursor.execute("SELECT my_id FROM user_data WHERE user_id = ?", (member.id,))
+        result = db_cursor.fetchone()
+        if not result:
+            await ctx.send(f"{member.display_name} is missing a MyID in the database.")
+            await transfer_to_everyone_and_notify(member, reason="Missing MyID in the database.")
+            return
+
+        # If compliant
+        await ctx.send(f"{member.display_name} is fully compliant!")
+        print(f"{member.display_name} passed all compliance checks.")
+
+    except Exception as e:
+        print(f"Error scanning {member.display_name}: {e}")
+        await ctx.send(f"An error occurred while scanning {member.display_name}. Please try again.")
 
 @bot.command()
 async def get_myid(ctx, member: discord.Member):
