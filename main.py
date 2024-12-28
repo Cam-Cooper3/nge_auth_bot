@@ -3,6 +3,7 @@ import os
 import sqlite3
 import asyncio
 from discord.ext import commands
+from discord import app_commands
 from dotenv import load_dotenv
 
 # Load the environment variables from .env
@@ -10,9 +11,11 @@ load_dotenv()
 
 # Get the variables from the .env file
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+GUILD_ID = int(os.getenv("DISCORD_SERVER_ID"))
 
 # Bot setup with required intents
 intents = discord.Intents.default()
+intents.guilds = True  # Required to fetch guild information
 intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -34,6 +37,30 @@ db_connection.commit()
 
 @bot.event
 async def on_ready():
+    await bot.wait_until_ready()  # Ensure the bot has fully loaded all guilds
+    try:
+        print("Connected to the following guilds:")
+        for guild in bot.guilds:
+            print(f"- {guild.name} (ID: {guild.id})")
+
+        guild_id = GUILD_ID  # Replace with your guild ID
+        print(f"Attempting to sync commands to guild with ID: {guild_id}")
+
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            print(f"Guild with ID {guild_id} not found in bot.guilds.")
+            print(f"List of connected guild IDs: {[g.id for g in bot.guilds]}")
+            return
+
+        print(f"Found guild: {guild.name} (ID: {guild.id})")
+        await bot.tree.sync(guild=discord.Object(id=guild_id))
+        print(f"Slash commands successfully synced for guild: {guild.id} ({guild.name})")
+
+    except Exception as e:
+        print(f"Failed to sync commands: {e}")
+
+
+
     print(f"Logged in as {bot.user}")
 
     for guild in bot.guilds:
@@ -46,10 +73,10 @@ async def on_ready():
             if owner:
                 try:
                     await owner.send(
-                        f"To function correctly, please ensure my role is at the top of the role hierarchy in your server "
-                        f"'{guild.name}'. You can do this in Server Settings > Roles."
+                        "**WARNING:** in order to function correctly, place the __NGE Authenticator__ role at the top of the "
+                        f"role hierarchy list in your server '{guild.name}'.\nYou can do this in Server Settings > Roles."
                     )
-                    print(f"Sent hierarchy notification to {owner.display_name}.")
+                    print(f"Sent hierarchy notification to {owner.display_name} (Server Owner).")
                 except discord.Forbidden:
                     print(f"Could not DM the server owner in {guild.name}.")
             else:
@@ -174,7 +201,8 @@ async def transfer_to_everyone_and_notify(member, reason):
     except Exception as e:
         print(f"Error handling member update for {member.display_name}: {e}")
 
-@bot.command()
+@bot.tree.command(name="scan_server", description="Scan all members in the server for compliance")
+@app_commands.guild_only()
 async def scan_server(ctx):
     """Command to scan all members in the server for compliance (Admin only)."""
     if not ctx.author.guild_permissions.administrator:
@@ -239,7 +267,8 @@ async def scan_server(ctx):
         f"Non-compliant members: {non_compliant_count}"
     )
 
-@bot.command()
+@bot.tree.command(name="scan_member", description="Scan a specific member in the server for compliance")
+@app_commands.guild_only()
 async def scan_member(ctx, member: discord.Member):
     """Command to scan a specific member for compliance (Admin only)."""
     if not ctx.author.guild_permissions.administrator:
@@ -289,7 +318,8 @@ async def scan_member(ctx, member: discord.Member):
         print(f"Error scanning {member.display_name}: {e}")
         await ctx.send(f"An error occurred while scanning {member.display_name}. Please try again.")
 
-@bot.command()
+@bot.tree.command(name="get_myid", description="Return a MyID for a specific member")
+@app_commands.guild_only()
 async def get_myid(ctx, member: discord.Member):
     """Command for moderators to retrieve a user's MyID in a specific channel."""
     if not ctx.author.guild_permissions.administrator:
@@ -304,7 +334,8 @@ async def get_myid(ctx, member: discord.Member):
     else:
         await ctx.send(f"No MyID found for {member.display_name}.")
 
-@bot.command()
+@bot.tree.command(name="add_myid", description="Add a MyID for to specific member")
+@app_commands.guild_only()
 async def add_myid(ctx, member: discord.Member = None, my_id: str = None):
     """Allow users to add/update their MyID or let administrators update others' MyID."""
     if not my_id:
@@ -328,7 +359,8 @@ async def add_myid(ctx, member: discord.Member = None, my_id: str = None):
     else:
         await ctx.send(f"{member.display_name} does not have a valid FirstName LastName nickname.")
 
-@bot.command()
+@bot.tree.command(name="list_myids", description="Return a list of all users and their MyIDs")
+@app_commands.guild_only()
 async def list_myids(ctx):
     """List all stored MyIDs (Admin only, restricted to #moderator-general channel)."""
     if not ctx.author.guild_permissions.administrator:
@@ -343,7 +375,8 @@ async def list_myids(ctx):
     else:
         await ctx.send("No MyIDs found in the database.")
 
-@bot.command()
+@bot.tree.command(name="wipe_myids", description="Empty the list associating users with their MyIDs")
+@app_commands.guild_only()
 async def wipe_myids(ctx):
     """Wipe all stored MyIDs from the database (Admin only, restricted to #moderator-general)."""
     if not ctx.author.guild_permissions.administrator:
