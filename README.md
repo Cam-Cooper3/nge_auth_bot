@@ -54,7 +54,12 @@ The **NGE Authenticator** is a Discord bot designed to streamline user complianc
 
    Replace `<Your_Discord_Bot_Token>` with your bot token and `<Your_Server_ID>` with your server's ID.
 
-3. Run the bot:
+3. Install the Discord.pi API wrapper if it is not already installed:
+   ```bash
+   pip install discord.py
+   ```
+
+4. Run the bot:
 
    ```bash
    python main.py
